@@ -23,6 +23,7 @@ export default function Home() {
   const toolOutput = useWidgetProps<VoiceResult>();
   const content = toolOutput?.result?.structuredContent ?? toolOutput;
   const audioUrl = content?.audioUrl || DEFAULT_AUDIO;
+  const message = content?.message;
   const audioRef = useRef<HTMLAudioElement>(null);
   const [playing, setPlaying] = useState(false);
   const [duration, setDuration] = useState(0);
@@ -65,7 +66,8 @@ export default function Home() {
 
   return (
     <main style={{ background: "transparent", padding: "4px 0", fontFamily: "system-ui, sans-serif" }}>
-      <div style={{ width: "100%", maxWidth: 320 }}>
+      <div style={{ width: "100%", maxWidth: 440 }}>
+        {message && <div style={{ fontSize: 14, lineHeight: 1.65, color: "#51424a", marginBottom: 10, whiteSpace: "pre-wrap" }}>{message}</div>}
             <audio
               ref={audioRef}
               src={audioUrl}
@@ -80,7 +82,7 @@ export default function Home() {
               onEnded={(event) => { setPlaying(false); setCurrentTime(event.currentTarget.currentTime); if (!duration && event.currentTarget.currentTime > 0) setCompletedDuration(event.currentTarget.currentTime); }}
               style={{ display: "none" }}
             />
-            <div style={{ display: "flex", alignItems: "center", gap: 9, width: "100%", maxWidth: 320, boxSizing: "border-box", background: "#FCE6EF", borderRadius: 999, padding: "12px 14px", color: PINK }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 9, width: "100%", maxWidth: 440, boxSizing: "border-box", background: "#FCE6EF", borderRadius: 999, padding: "12px 14px", color: PINK }}>
               <button type="button" onClick={togglePlayback} aria-label={playing ? "暂停" : "播放"} style={{ color: PINK, border: 0, background: "transparent", padding: 0, width: 20, height: 24, display: "grid", placeItems: "center", flexShrink: 0, cursor: "pointer" }}>
                 {playing ? (
                   <svg width="17" height="18" viewBox="0 0 18 18" fill="currentColor" aria-hidden="true"><rect x="3" y="2" width="4" height="14" rx="1"/><rect x="11" y="2" width="4" height="14" rx="1"/></svg>
