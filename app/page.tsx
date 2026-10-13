@@ -65,8 +65,8 @@ export default function Home() {
   const progress = totalDuration > 0 ? Math.min(100, (currentTime / totalDuration) * 100) : 0;
 
   return (
-    <main style={{ background: "transparent", padding: "4px 0", fontFamily: "system-ui, sans-serif" }}>
-      <div style={{ width: "100%", maxWidth: 310, minWidth: 0, boxSizing: "border-box" }}>
+    <main style={{ background: "transparent", padding: "4px 12px", fontFamily: "system-ui, sans-serif", display: "flex", justifyContent: "center", width: "100%", boxSizing: "border-box", minWidth: 0 }}>
+      <div style={{ width: "100%", maxWidth: 310, minWidth: 0, boxSizing: "border-box", margin: "0 auto" }}>
             <audio
               ref={audioRef}
               src={audioUrl}
