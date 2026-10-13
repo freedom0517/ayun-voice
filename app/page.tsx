@@ -96,7 +96,7 @@ export default function Home() {
               </button>
               <span style={{ fontSize: 12, whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums", flexShrink: 0 }}>{formatTime(currentTime)} / {totalDuration > 0 ? formatTime(totalDuration) : "--:--"}</span>
               <div style={{ position: "relative", flex: 1, minWidth: 34, height: 22, display: "flex", alignItems: "center" }}>
-                <div aria-hidden="true" style={{ position: "absolute", left: 0, right: 0, height: 4, borderRadius: 999, background: "#F3B9D0", pointerEvents: "none" }}>
+                <div aria-hidden="true" style={{ position: "absolute", left: 0, right: 0, height: 4, borderRadius: 999, background: "#FFFFFF", pointerEvents: "none" }}>
                   <div style={{ width: `${progress}%`, height: "100%", borderRadius: 999, background: PINK }} />
                 </div>
                 <input
