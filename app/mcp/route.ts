@@ -38,8 +38,8 @@ const handler = createMcpHandler(async (server) => {
     invoking: "Loading content...",
     invoked: "Content loaded",
     html: html,
-    description: "Displays the homepage content",
-    widgetDomain: "https://nextjs.org/docs",
+    description: "Shows a pink voice-message player with a test audio clip",
+    widgetDomain: baseURL,
   };
   server.registerResource(
     "content-widget",
@@ -74,7 +74,7 @@ const handler = createMcpHandler(async (server) => {
     {
       title: contentWidget.title,
       description:
-        "Fetch and display the homepage content with the name of the user",
+        "Show a pink voice message with a playable test audio clip for the named user",
       inputSchema: {
         name: z.string().describe("The name of the user to display on the homepage"),
       },
@@ -90,6 +90,7 @@ const handler = createMcpHandler(async (server) => {
         ],
         structuredContent: {
           name: name,
+          audioUrl: "https://interactive-examples.mdn.mozilla.net/media/cc0-audio/t-rex-roar.mp3",
           timestamp: new Date().toISOString(),
         },
         _meta: widgetMeta(contentWidget),
