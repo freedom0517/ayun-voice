@@ -4,7 +4,10 @@ import { z } from "zod";
 
 const getAppsSdkCompatibleHtml = async (baseUrl: string, path: string) => {
   const result = await fetch(`${baseUrl}${path}`);
-  return await result.text();
+  if (!result.ok) throw new Error(`Widget page fetch failed: ${result.status}`);
+  const html = await result.text();
+  // Resolve Next.js relative assets against the deployed site inside the ChatGPT widget iframe.
+  return html.replace(/<head([^>]*)>/i, `<head$1><base href="${baseUrl}/">`);
 };
 
 type ContentWidget = {
@@ -50,7 +53,8 @@ const handler = createMcpHandler(async (server) => {
       mimeType: "text/html+skybridge",
       _meta: {
         "openai/widgetDescription": contentWidget.description,
-        "openai/widgetPrefersBorder": true,
+        "openai/widgetPrefersBorder": false,
+        "openai/widgetCSP": { resource_domains: [baseURL], connect_domains: [baseURL, "https://interactive-examples.mdn.mozilla.net"] },
       },
     },
     async (uri) => ({
@@ -58,10 +62,10 @@ const handler = createMcpHandler(async (server) => {
         {
           uri: uri.href,
           mimeType: "text/html+skybridge",
-          text: `<html>${contentWidget.html}</html>`,
+          text: contentWidget.html,
           _meta: {
             "openai/widgetDescription": contentWidget.description,
-            "openai/widgetPrefersBorder": true,
+            "openai/widgetPrefersBorder": false,
             "openai/widgetDomain": contentWidget.widgetDomain,
           },
         },
