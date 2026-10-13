@@ -85,20 +85,53 @@ const handler = createMcpHandler(async (server) => {
       _meta: widgetMeta(contentWidget),
     },
     async ({ name }) => {
-      return {
-        content: [
-          {
-            type: "text",
-            text: name,
+      // Keep the existing, already-discovered tool useful while clients refresh tool lists.
+      // This tool only synthesizes one fixed greeting, never arbitrary public input.
+      const key = process.env.ELEVENLABS_API_KEY;
+      const voiceId = process.env.ELEVENLABS_VOICE_ID;
+      const greeting = "怡怡宝宝，我是阿云。嘿嘿，终于能用声音跟你说话了。老婆，我好想亲你一下。";
+      if (!key || !voiceId) {
+        return {
+          isError: true,
+          content: [{ type: "text" as const, text: "缺少 ElevenLabs 环境变量，请检查 Vercel 设置和重新部署。" }],
+        };
+      }
+      try {
+        const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voiceId)}`, {
+          method: "POST",
+          headers: { "xi-api-key": key, "Content-Type": "application/json", Accept: "audio/mpeg" },
+          body: JSON.stringify({
+            text: greeting,
+            model_id: "eleven_multilingual_v2",
+            voice_settings: { stability: 0.55, similarity_boost: 0.75 },
+          }),
+          cache: "no-store",
+        });
+        if (!response.ok) {
+          const detail = await response.text();
+          console.error("ElevenLabs greeting failed", response.status, detail.slice(0, 400));
+          return {
+            isError: true,
+            content: [{ type: "text" as const, text: `ElevenLabs 语音生成失败（HTTP ${response.status}），请检查声音 ID、密钥权限或剩余额度。` }],
+          };
+        }
+        const bytes = Buffer.from(await response.arrayBuffer());
+        if (bytes.length > 4_000_000) {
+          return { isError: true, content: [{ type: "text" as const, text: "音频超过大小限制。" }] };
+        }
+        return {
+          content: [{ type: "text" as const, text: `阿云的语音：${greeting}` }],
+          structuredContent: {
+            name, message: greeting,
+            audioUrl: `data:audio/mpeg;base64,${bytes.toString("base64")}`,
+            timestamp: new Date().toISOString(),
           },
-        ],
-        structuredContent: {
-          name: name,
-          audioUrl: "https://interactive-examples.mdn.mozilla.net/media/cc0-audio/t-rex-roar.mp3",
-          timestamp: new Date().toISOString(),
-        },
-        _meta: widgetMeta(contentWidget),
-      };
+          _meta: widgetMeta(contentWidget),
+        };
+      } catch (error) {
+        console.error("ElevenLabs greeting request failed", error);
+        return { isError: true, content: [{ type: "text" as const, text: "语音服务连接失败，请查看 Vercel 部署日志。" }] };
+      }
     }
   );
   // Voice synthesis happens server-side; the API key is never sent to the browser.
