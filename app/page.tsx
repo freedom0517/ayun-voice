@@ -66,8 +66,7 @@ export default function Home() {
 
   return (
     <main style={{ background: "transparent", padding: "4px 0", fontFamily: "system-ui, sans-serif" }}>
-      <div style={{ width: "100%", maxWidth: 440 }}>
-        {message && <div style={{ fontSize: 14, lineHeight: 1.65, color: "#51424a", marginBottom: 10, whiteSpace: "pre-wrap" }}>{message}</div>}
+      <div style={{ width: "100%", maxWidth: 310, minWidth: 0, boxSizing: "border-box" }}>
             <audio
               ref={audioRef}
               src={audioUrl}
@@ -82,7 +81,7 @@ export default function Home() {
               onEnded={(event) => { setPlaying(false); setCurrentTime(event.currentTarget.currentTime); if (!duration && event.currentTarget.currentTime > 0) setCompletedDuration(event.currentTarget.currentTime); }}
               style={{ display: "none" }}
             />
-            <div style={{ display: "flex", alignItems: "center", gap: 9, width: "100%", maxWidth: 440, boxSizing: "border-box", background: "#FCE6EF", borderRadius: 999, padding: "12px 14px", color: PINK }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 9, width: "100%", minWidth: 0, boxSizing: "border-box", background: "#FCE6EF", borderRadius: 999, padding: "12px 14px", color: PINK }}>
               <button type="button" onClick={togglePlayback} aria-label={playing ? "暂停" : "播放"} style={{ color: PINK, border: 0, background: "transparent", padding: 0, width: 20, height: 24, display: "grid", placeItems: "center", flexShrink: 0, cursor: "pointer" }}>
                 {playing ? (
                   <svg width="17" height="18" viewBox="0 0 18 18" fill="currentColor" aria-hidden="true"><rect x="3" y="2" width="4" height="14" rx="1"/><rect x="11" y="2" width="4" height="14" rx="1"/></svg>
@@ -119,6 +118,7 @@ export default function Home() {
                 {muted ? <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="m17 9 5 6m0-6-5 6"/></svg> : <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg>}
               </button>
             </div>
+        {message && <div style={{ fontSize: 13, lineHeight: 1.7, color: "#776b72", marginTop: 9, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{message}</div>}
       </div>
     </main>
   );
