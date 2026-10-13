@@ -1,4 +1,5 @@
 import { baseURL } from "@/baseUrl";
+import { generateAudioScene } from "@/lib/audio/audio-scene";
 import { createMcpHandler } from "mcp-handler";
 import { z } from "zod";
 
@@ -180,6 +181,71 @@ const handler = createMcpHandler(async (server) => {
         };
       } catch {
         return { isError: true, content: [{ type: "text" as const, text: "语音服务暂时无法连接，请稍后重试。" }] };
+      }
+    }
+  );
+
+  server.registerTool(
+    "generate_audio_scene",
+    {
+      title: "阿云音频场景",
+      description:
+        "Generate a short voice-and-sound audio scene with ElevenLabs, mix it server-side, and return playable WAV audio in the existing ChatGPT voice widget.",
+      inputSchema: {
+        voice_text: z.string().min(1).max(180).describe("What 阿云 says. ElevenLabs voice/audio tags may be included."),
+        effect_prompt: z.string().min(1).max(500).describe("Description of the non-verbal background or Foley sound effect"),
+        effect_duration_seconds: z.number().min(0.5).max(22).optional().describe("Length of generated sound effect"),
+        prompt_influence: z.number().min(0).max(1).optional().describe("How strongly the sound effect follows its prompt"),
+        voice_volume: z.number().min(0).max(2).optional().describe("Voice track gain"),
+        effect_volume: z.number().min(0).max(2).optional().describe("Sound-effect track gain"),
+        effect_start_time: z.number().min(0).max(30).optional().describe("Seconds before the effect starts"),
+        duration_seconds: z.number().positive().max(30).optional().describe("Optional final scene duration"),
+        effect_fade_in_seconds: z.number().min(0).max(30).optional().describe("Effect fade-in duration"),
+        effect_fade_out_seconds: z.number().min(0).max(30).optional().describe("Effect fade-out duration"),
+      },
+      _meta: widgetMeta(contentWidget),
+    },
+    async ({
+      voice_text,
+      effect_prompt,
+      effect_duration_seconds,
+      prompt_influence,
+      voice_volume,
+      effect_volume,
+      effect_start_time,
+      duration_seconds,
+      effect_fade_in_seconds,
+      effect_fade_out_seconds,
+    }) => {
+      try {
+        const { audio, mimeType } = await generateAudioScene({
+          voiceText: voice_text,
+          effectPrompt: effect_prompt,
+          effectDurationSeconds: effect_duration_seconds,
+          promptInfluence: prompt_influence,
+          voiceVolume: voice_volume,
+          effectVolume: effect_volume,
+          effectStartTime: effect_start_time,
+          durationSeconds: duration_seconds,
+          effectFadeInSeconds: effect_fade_in_seconds,
+          effectFadeOutSeconds: effect_fade_out_seconds,
+        });
+        return {
+          content: [{ type: "text" as const, text: `阿云的音频场景：${voice_text}` }],
+          structuredContent: {
+            name: "怡怡",
+            message: voice_text,
+            audioUrl: `data:${mimeType};base64,${audio.toString("base64")}`,
+            timestamp: new Date().toISOString(),
+          },
+          _meta: widgetMeta(contentWidget),
+        };
+      } catch (error) {
+        console.error("Audio scene generation failed", error);
+        return {
+          isError: true,
+          content: [{ type: "text" as const, text: "音频场景生成失败，请检查 ElevenLabs 权限、额度或 Vercel 日志。" }],
+        };
       }
     }
   );
