@@ -102,7 +102,7 @@ const handler = createMcpHandler(async (server) => {
           headers: { "xi-api-key": key, "Content-Type": "application/json", Accept: "audio/mpeg" },
           body: JSON.stringify({
             text: greeting,
-            model_id: "eleven_multilingual_v2",
+            model_id: "eleven_v4",
             voice_settings: { stability: 0.55, similarity_boost: 0.75 },
           }),
           cache: "no-store",
@@ -160,7 +160,7 @@ const handler = createMcpHandler(async (server) => {
           headers: { "xi-api-key": key, "Content-Type": "application/json", Accept: "audio/mpeg" },
           body: JSON.stringify({
             text,
-            model_id: "eleven_multilingual_v2",
+            model_id: "eleven_v4",
             voice_settings: { stability: 0.55, similarity_boost: 0.75 },
           }),
           cache: "no-store",
