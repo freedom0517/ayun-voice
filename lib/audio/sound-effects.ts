@@ -8,12 +8,14 @@ export type SoundEffectOptions = {
   prompt: string;
   durationSeconds?: number;
   promptInfluence?: number;
+  outputFormat?: "mp3_44100_128" | "pcm_24000";
 };
 
 export async function generateSoundEffect({
   prompt,
   durationSeconds = 5,
   promptInfluence = 0.3,
+  outputFormat = "mp3_44100_128",
 }: SoundEffectOptions): Promise<Buffer> {
   const apiKey = process.env.ELEVENLABS_API_KEY;
   if (!apiKey) throw new Error("ELEVENLABS_API_KEY is not configured");
@@ -29,12 +31,12 @@ export async function generateSoundEffect({
     throw new Error("promptInfluence must be between 0 and 1");
   }
 
-  const response = await fetch("https://api.elevenlabs.io/v1/sound-generation", {
+  const response = await fetch(`https://api.elevenlabs.io/v1/sound-generation?output_format=${outputFormat}`, {
     method: "POST",
     headers: {
       "xi-api-key": apiKey,
       "Content-Type": "application/json",
-      Accept: "audio/mpeg",
+      Accept: outputFormat === "pcm_24000" ? "application/octet-stream" : "audio/mpeg",
     },
     body: JSON.stringify({
       text: description,
@@ -52,6 +54,9 @@ export async function generateSoundEffect({
   const audio = Buffer.from(await response.arrayBuffer());
   if (audio.length === 0 || audio.length > 4_000_000) {
     throw new Error("Sound effect output is empty or exceeds 4 MB");
+  }
+  if (outputFormat === "pcm_24000" && audio.length % 2 !== 0) {
+    throw new Error("Sound effect PCM output has an invalid byte length");
   }
   return audio;
 }
