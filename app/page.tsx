@@ -25,9 +25,11 @@ export default function Home() {
           <div style={{ color: "#91858c", fontSize: 12, marginBottom: 6 }}>阿云</div>
           <section style={{ background: "#fdf1f5", borderRadius: "5px 18px 18px 18px", padding: "14px 16px", maxWidth: "90%", boxSizing: "border-box" }}>
             <div style={{ fontSize: 14, lineHeight: 1.65, marginBottom: 10 }}>{name}，阿云的语音条测试来啦。</div>
-            <audio controls preload="metadata" src={audioUrl} style={{ display: "block", width: "100%", minWidth: 0 }} aria-label="播放测试音频">
-              当前设备无法播放音频。
-            </audio>
+            <div style={{ border: "2px solid #E9AFC5", borderRadius: 999, padding: 3, background: "#FCE7EF", overflow: "hidden" }}>
+              <audio controls preload="metadata" src={audioUrl} style={{ display: "block", width: "100%", minWidth: 0, borderRadius: 999 }} aria-label="播放测试音频">
+                当前设备无法播放音频。
+              </audio>
+            </div>
             <div style={{ fontSize: 11, lineHeight: 1.6, color: "#8f7e87", marginTop: 8 }}>
               这是公开测试音效，不是阿云的声音。先确认 ChatGPT 安卓端能播放，随后再接中文语音合成。
             </div>
