@@ -5,8 +5,9 @@ import { useWidgetProps, useIsChatGptApp } from "./hooks";
 
 type VoiceResult = {
   name?: string;
+  message?: string;
   audioUrl?: string;
-  result?: { structuredContent?: { name?: string; audioUrl?: string } };
+  result?: { structuredContent?: { name?: string; message?: string; audioUrl?: string } };
 };
 
 const DEFAULT_AUDIO = "https://interactive-examples.mdn.mozilla.net/media/cc0-audio/t-rex-roar.mp3";
@@ -24,6 +25,7 @@ export default function Home() {
   const content = toolOutput?.result?.structuredContent ?? toolOutput;
   const name = content?.name || "怡怡";
   const audioUrl = content?.audioUrl || DEFAULT_AUDIO;
+  const message = content?.message;
   const audioRef = useRef<HTMLAudioElement>(null);
   const [playing, setPlaying] = useState(false);
   const [duration, setDuration] = useState(0);
@@ -71,7 +73,7 @@ export default function Home() {
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ color: "#91858c", fontSize: 12, marginBottom: 6 }}>阿云</div>
           <section style={{ background: "#fdf1f5", borderRadius: "5px 18px 18px 18px", padding: "13px 15px", maxWidth: "90%", boxSizing: "border-box" }}>
-            <div style={{ fontSize: 14, lineHeight: 1.65, marginBottom: 11 }}>{name}，阿云的语音条测试来啦。</div>
+            <div style={{ fontSize: 14, lineHeight: 1.65, marginBottom: 11 }}>{message || `${name}，阿云的语音条测试来啦。`}</div>
             <audio
               ref={audioRef}
               src={audioUrl}
@@ -123,9 +125,9 @@ export default function Home() {
                 {muted ? <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="m17 9 5 6m0-6-5 6"/></svg> : <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg>}
               </button>
             </div>
-            <div style={{ fontSize: 11, lineHeight: 1.6, color: "#8f7e87", marginTop: 11 }}>
+            {!message && <div style={{ fontSize: 11, lineHeight: 1.6, color: "#8f7e87", marginTop: 11 }}>
               这是公开测试音效，不是阿云的声音。先确认 ChatGPT 安卓端能播放，随后再接中文语音合成。
-            </div>
+            </div>}
           </section>
           <div style={{ color: "#b3a7ad", fontSize: 11, marginTop: 5 }}>已读</div>
           {!isChatGptApp && <p style={{ fontSize: 12, color: "#92848c", marginTop: 16 }}>网页预览模式。正式插件卡片需要在 ChatGPT 中调用 show_content。</p>}
