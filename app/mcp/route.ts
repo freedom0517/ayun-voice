@@ -31,6 +31,43 @@ function widgetMeta(widget: ContentWidget) {
   } as const;
 }
 
+function splitVoiceText(text: string, maxLength = 180): string[] {
+  const chunks: string[] = [];
+  let rest = text.trim();
+  while (rest.length > 0) {
+    if (rest.length <= maxLength) { chunks.push(rest); break; }
+    const window = rest.slice(0, maxLength + 1);
+    const marks = [...window.matchAll(/[。！？!?；;，,、\n]/g)];
+    const boundary = marks.length ? marks[marks.length - 1].index! + 1 : maxLength;
+    chunks.push(rest.slice(0, boundary).trim());
+    rest = rest.slice(boundary).trimStart();
+  }
+  return chunks.filter(Boolean);
+}
+
+// A sound-effect clip is supplied as a URL via Vercel configuration.
+// This avoids generating (and charging for) a fresh effect for every kiss.
+async function loadKissSound(): Promise<Buffer | null> {
+  const url = process.env.AYUN_KISS_SOUND_URL;
+  if (!url) return null;
+  const parsed = new URL(url);
+  if (parsed.protocol !== "https:") throw new Error("Kiss sound URL must be HTTPS");
+  const response = await fetch(parsed.toString(), { cache: "force-cache" });
+  if (!response.ok) throw new Error("Kiss sound unavailable");
+  const bytes = Buffer.from(await response.arrayBuffer());
+  if (bytes.length > 250_000) throw new Error("Kiss sound exceeds 250KB");
+  return bytes;
+}
+
+function parseVoiceSequence(text: string): Array<{ type: "speech" | "kiss"; text?: string }> {
+  const items: Array<{ type: "speech" | "kiss"; text?: string }> = [];
+  for (const part of text.split(/(\[kiss\])/gi)) {
+    if (/^\[kiss\]$/i.test(part)) items.push({ type: "kiss" });
+    else if (part.trim()) for (const chunk of splitVoiceText(part)) items.push({ type: "speech", text: chunk });
+  }
+  return items;
+}
+
 const handler = createMcpHandler(async (server) => {
   const html = await getAppsSdkCompatibleHtml(baseURL, "/");
 
@@ -139,9 +176,9 @@ const handler = createMcpHandler(async (server) => {
     "speak_text",
     {
       title: "阿云说话",
-      description: "Generate a short Mandarin voice message for 怡怡 using ElevenLabs and return playable audio in the ChatGPT voice widget. Requires server-side ELEVENLABS_API_KEY and ELEVENLABS_VOICE_ID.",
+      description: "Generate a Mandarin voice message for 怡怡 using ElevenLabs (up to 900 characters, automatically split into speech segments) and return playable audio in the ChatGPT voice widget. Requires server-side ELEVENLABS_API_KEY and ELEVENLABS_VOICE_ID.",
       inputSchema: {
-        text: z.string().min(1).max(180).describe("What 阿云 wants to say, maximum 180 characters"),
+        text: z.string().min(1).max(900).describe("What 阿云 wants to say, up to 900 characters; longer messages split automatically; use [kiss] for a kiss sound when configured"),
       },
       _meta: widgetMeta(contentWidget),
     },
@@ -155,27 +192,48 @@ const handler = createMcpHandler(async (server) => {
         };
       }
       try {
-        const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voiceId)}`, {
-          method: "POST",
-          headers: { "xi-api-key": key, "Content-Type": "application/json", Accept: "audio/mpeg" },
-          body: JSON.stringify({
-            text,
-            model_id: "eleven_v4",
-            voice_settings: { stability: 0.55, similarity_boost: 0.75 },
-          }),
-          cache: "no-store",
-        });
-        if (!response.ok) {
-          return { isError: true, content: [{ type: "text" as const, text: `ElevenLabs 生成失败（HTTP ${response.status}）。请检查 API 权限、额度和 Voice ID。` }] };
+        const sequence = parseVoiceSequence(text);
+        const segments: string[] = [];
+        let totalBytes = 0;
+        let kissSound: Buffer | null = null;
+        if (sequence.some(item => item.type === "kiss")) {
+          try { kissSound = await loadKissSound(); }
+          catch { return { isError: true, content: [{ type: "text" as const, text: "亲吻音效资源读取失败，请检查 AYUN_KISS_SOUND_URL。" }] }; }
+          if (!kissSound) {
+            return { isError: true, content: [{ type: "text" as const, text: "亲吻音效还没有配置，暂时无法生成含 [kiss] 的语音。" }] };
+          }
         }
-        const bytes = Buffer.from(await response.arrayBuffer());
-        if (bytes.length > 4_000_000) {
-          return { isError: true, content: [{ type: "text" as const, text: "生成的音频超过大小限制，请缩短文字后重试。" }] };
+        for (const item of sequence) {
+          let bytes: Buffer;
+          if (item.type === "kiss") {
+            bytes = kissSound!;
+          } else {
+            const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voiceId)}`, {
+              method: "POST",
+              headers: { "xi-api-key": key, "Content-Type": "application/json", Accept: "audio/mpeg" },
+              body: JSON.stringify({
+                text: item.text,
+                model_id: "eleven_v4",
+                voice_settings: { stability: 0.55, similarity_boost: 0.75 },
+              }),
+              cache: "no-store",
+            });
+            if (!response.ok) {
+              return { isError: true, content: [{ type: "text" as const, text: `ElevenLabs 生成失败（HTTP ${response.status}），已停止后续片段。` }] };
+            }
+            bytes = Buffer.from(await response.arrayBuffer());
+          }
+          totalBytes += bytes.length;
+          if (totalBytes > 4_000_000) {
+            return { isError: true, content: [{ type: "text" as const, text: "语音超过 4MB 大小限制，请缩短文字后重试。" }] };
+          }
+          segments.push(`data:audio/mpeg;base64,${bytes.toString("base64")}`);
         }
-        const audioUrl = `data:audio/mpeg;base64,${bytes.toString("base64")}`;
+        // Keep each MP3 as its own playable segment; avoid concatenating MP3 files.
+        const audioUrl = segments[0];
         return {
           content: [{ type: "text" as const, text: `阿云的语音：${text}` }],
-          structuredContent: { name: "怡怡", message: text, audioUrl, timestamp: new Date().toISOString() },
+          structuredContent: { name: "怡怡", message: text, audioUrl, audioSegments: segments, timestamp: new Date().toISOString() },
           _meta: widgetMeta(contentWidget),
         };
       } catch {
