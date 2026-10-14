@@ -33,7 +33,8 @@ export default function Home() {
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
   const [muted, setMuted] = useState(false);
-  const [completedDuration, setCompletedDuration] = useState(0);\n  const [autoAdvance, setAutoAdvance] = useState(false);
+  const [completedDuration, setCompletedDuration] = useState(0);
+  const [autoAdvance, setAutoAdvance] = useState(false);
 
   function syncDuration(audio: HTMLAudioElement) {
     if (Number.isFinite(audio.duration) && audio.duration > 0) {
