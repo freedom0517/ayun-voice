@@ -61,8 +61,8 @@ async function loadKissSound(): Promise<Buffer | null> {
 
 function parseVoiceSequence(text: string): Array<{ type: "speech" | "kiss"; text?: string }> {
   const items: Array<{ type: "speech" | "kiss"; text?: string }> = [];
-  for (const part of text.split(/(\\[kiss\\])/gi)) {
-    if (/^\\[kiss\\]$/i.test(part)) items.push({ type: "kiss" });
+  for (const part of text.split(/(\[kiss\])/gi)) {
+    if (/^\[kiss\]$/i.test(part)) items.push({ type: "kiss" });
     else if (part.trim()) for (const chunk of splitVoiceText(part)) items.push({ type: "speech", text: chunk });
   }
   return items;
