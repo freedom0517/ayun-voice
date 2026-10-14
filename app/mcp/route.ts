@@ -227,13 +227,13 @@ const handler = createMcpHandler(async (server) => {
           if (totalBytes > 4_000_000) {
             return { isError: true, content: [{ type: "text" as const, text: "语音超过 4MB 大小限制，请缩短文字后重试。" }] };
           }
-          buffers.push(bytes);
+          segments.push(`data:audio/mpeg;base64,${bytes.toString("base64")}`);
         }
         // MP3 frame concatenation is provisional; validate duration and seeking before production.
         const audioUrl = `data:audio/mpeg;base64,${Buffer.concat(buffers).toString("base64")}`;
         return {
           content: [{ type: "text" as const, text: `阿云的语音：${text}` }],
-          structuredContent: { name: "怡怡", message: text, audioUrl, timestamp: new Date().toISOString() },
+          structuredContent: { name: "怡怡", message: text, audioUrl, audioSegments: segments, timestamp: new Date().toISOString() },
           _meta: widgetMeta(contentWidget),
         };
       } catch {
