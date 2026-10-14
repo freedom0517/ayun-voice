@@ -193,7 +193,7 @@ const handler = createMcpHandler(async (server) => {
       }
       try {
         const sequence = parseVoiceSequence(text);
-        const buffers: Buffer[] = [];
+        const segments: string[] = [];
         let totalBytes = 0;
         let kissSound: Buffer | null = null;
         if (sequence.some(item => item.type === "kiss")) {
@@ -229,8 +229,8 @@ const handler = createMcpHandler(async (server) => {
           }
           segments.push(`data:audio/mpeg;base64,${bytes.toString("base64")}`);
         }
-        // MP3 frame concatenation is provisional; validate duration and seeking before production.
-        const audioUrl = `data:audio/mpeg;base64,${Buffer.concat(buffers).toString("base64")}`;
+        // Keep each MP3 as its own playable segment; avoid concatenating MP3 files.
+        const audioUrl = segments[0];
         return {
           content: [{ type: "text" as const, text: `阿云的语音：${text}` }],
           structuredContent: { name: "怡怡", message: text, audioUrl, audioSegments: segments, timestamp: new Date().toISOString() },
