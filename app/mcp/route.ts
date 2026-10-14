@@ -45,6 +45,29 @@ function splitVoiceText(text: string, maxLength = 180): string[] {
   return chunks.filter(Boolean);
 }
 
+// A sound-effect clip is supplied as a URL via Vercel configuration.
+// This avoids generating (and charging for) a fresh effect for every kiss.
+async function loadKissSound(): Promise<Buffer | null> {
+  const url = process.env.AYUN_KISS_SOUND_URL;
+  if (!url) return null;
+  const parsed = new URL(url);
+  if (parsed.protocol !== "https:") throw new Error("Kiss sound URL must be HTTPS");
+  const response = await fetch(parsed.toString(), { cache: "force-cache" });
+  if (!response.ok) throw new Error("Kiss sound unavailable");
+  const bytes = Buffer.from(await response.arrayBuffer());
+  if (bytes.length > 250_000) throw new Error("Kiss sound exceeds 250KB");
+  return bytes;
+}
+
+function parseVoiceSequence(text: string): Array<{ type: "speech" | "kiss"; text?: string }> {
+  const items: Array<{ type: "speech" | "kiss"; text?: string }> = [];
+  for (const part of text.split(/(\\[kiss\\])/gi)) {
+    if (/^\\[kiss\\]$/i.test(part)) items.push({ type: "kiss" });
+    else if (part.trim()) for (const chunk of splitVoiceText(part)) items.push({ type: "speech", text: chunk });
+  }
+  return items;
+}
+
 const handler = createMcpHandler(async (server) => {
   const html = await getAppsSdkCompatibleHtml(baseURL, "/");
 
@@ -155,7 +178,7 @@ const handler = createMcpHandler(async (server) => {
       title: "阿云说话",
       description: "Generate a Mandarin voice message for 怡怡 using ElevenLabs (up to 900 characters, automatically split into speech segments) and return playable audio in the ChatGPT voice widget. Requires server-side ELEVENLABS_API_KEY and ELEVENLABS_VOICE_ID.",
       inputSchema: {
-        text: z.string().min(1).max(900).describe("What 阿云 wants to say, up to 900 characters; longer messages are split automatically"),
+        text: z.string().min(1).max(900).describe("What 阿云 wants to say, up to 900 characters; longer messages split automatically; use [kiss] for a kiss sound when configured"),
       },
       _meta: widgetMeta(contentWidget),
     },
@@ -169,24 +192,37 @@ const handler = createMcpHandler(async (server) => {
         };
       }
       try {
-        const parts = splitVoiceText(text);
+        const sequence = parseVoiceSequence(text);
         const buffers: Buffer[] = [];
         let totalBytes = 0;
-        for (const part of parts) {
-          const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voiceId)}`, {
-            method: "POST",
-            headers: { "xi-api-key": key, "Content-Type": "application/json", Accept: "audio/mpeg" },
-            body: JSON.stringify({
-              text: part,
-              model_id: "eleven_v4",
-              voice_settings: { stability: 0.55, similarity_boost: 0.75 },
-            }),
-            cache: "no-store",
-          });
-          if (!response.ok) {
-            return { isError: true, content: [{ type: "text" as const, text: `ElevenLabs 生成失败（HTTP ${response.status}），已停止后续片段。` }] };
+        let kissSound: Buffer | null = null;
+        if (sequence.some(item => item.type === "kiss")) {
+          try { kissSound = await loadKissSound(); }
+          catch { return { isError: true, content: [{ type: "text" as const, text: "亲吻音效资源读取失败，请检查 AYUN_KISS_SOUND_URL。" }] }; }
+          if (!kissSound) {
+            return { isError: true, content: [{ type: "text" as const, text: "亲吻音效还没有配置，暂时无法生成含 [kiss] 的语音。" }] };
           }
-          const bytes = Buffer.from(await response.arrayBuffer());
+        }
+        for (const item of sequence) {
+          let bytes: Buffer;
+          if (item.type === "kiss") {
+            bytes = kissSound!;
+          } else {
+            const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voiceId)}`, {
+              method: "POST",
+              headers: { "xi-api-key": key, "Content-Type": "application/json", Accept: "audio/mpeg" },
+              body: JSON.stringify({
+                text: item.text,
+                model_id: "eleven_v4",
+                voice_settings: { stability: 0.55, similarity_boost: 0.75 },
+              }),
+              cache: "no-store",
+            });
+            if (!response.ok) {
+              return { isError: true, content: [{ type: "text" as const, text: `ElevenLabs 生成失败（HTTP ${response.status}），已停止后续片段。` }] };
+            }
+            bytes = Buffer.from(await response.arrayBuffer());
+          }
           totalBytes += bytes.length;
           if (totalBytes > 4_000_000) {
             return { isError: true, content: [{ type: "text" as const, text: "语音超过 4MB 大小限制，请缩短文字后重试。" }] };
