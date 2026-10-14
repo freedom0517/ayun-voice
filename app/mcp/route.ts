@@ -31,6 +31,20 @@ function widgetMeta(widget: ContentWidget) {
   } as const;
 }
 
+function splitVoiceText(text: string, maxLength = 180): string[] {
+  const chunks: string[] = [];
+  let rest = text.trim();
+  while (rest.length > 0) {
+    if (rest.length <= maxLength) { chunks.push(rest); break; }
+    const window = rest.slice(0, maxLength + 1);
+    const marks = [...window.matchAll(/[。！？!?；;，,、\n]/g)];
+    const boundary = marks.length ? marks[marks.length - 1].index! + 1 : maxLength;
+    chunks.push(rest.slice(0, boundary).trim());
+    rest = rest.slice(boundary).trimStart();
+  }
+  return chunks.filter(Boolean);
+}
+
 const handler = createMcpHandler(async (server) => {
   const html = await getAppsSdkCompatibleHtml(baseURL, "/");
 
@@ -139,9 +153,9 @@ const handler = createMcpHandler(async (server) => {
     "speak_text",
     {
       title: "阿云说话",
-      description: "Generate a short Mandarin voice message for 怡怡 using ElevenLabs and return playable audio in the ChatGPT voice widget. Requires server-side ELEVENLABS_API_KEY and ELEVENLABS_VOICE_ID.",
+      description: "Generate a Mandarin voice message for 怡怡 using ElevenLabs (up to 900 characters, automatically split into speech segments) and return playable audio in the ChatGPT voice widget. Requires server-side ELEVENLABS_API_KEY and ELEVENLABS_VOICE_ID.",
       inputSchema: {
-        text: z.string().min(1).max(180).describe("What 阿云 wants to say, maximum 180 characters"),
+        text: z.string().min(1).max(900).describe("What 阿云 wants to say, up to 900 characters; longer messages are split automatically"),
       },
       _meta: widgetMeta(contentWidget),
     },
@@ -155,24 +169,32 @@ const handler = createMcpHandler(async (server) => {
         };
       }
       try {
-        const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voiceId)}`, {
-          method: "POST",
-          headers: { "xi-api-key": key, "Content-Type": "application/json", Accept: "audio/mpeg" },
-          body: JSON.stringify({
-            text,
-            model_id: "eleven_v4",
-            voice_settings: { stability: 0.55, similarity_boost: 0.75 },
-          }),
-          cache: "no-store",
-        });
-        if (!response.ok) {
-          return { isError: true, content: [{ type: "text" as const, text: `ElevenLabs 生成失败（HTTP ${response.status}）。请检查 API 权限、额度和 Voice ID。` }] };
+        const parts = splitVoiceText(text);
+        const buffers: Buffer[] = [];
+        let totalBytes = 0;
+        for (const part of parts) {
+          const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voiceId)}`, {
+            method: "POST",
+            headers: { "xi-api-key": key, "Content-Type": "application/json", Accept: "audio/mpeg" },
+            body: JSON.stringify({
+              text: part,
+              model_id: "eleven_v4",
+              voice_settings: { stability: 0.55, similarity_boost: 0.75 },
+            }),
+            cache: "no-store",
+          });
+          if (!response.ok) {
+            return { isError: true, content: [{ type: "text" as const, text: `ElevenLabs 生成失败（HTTP ${response.status}），已停止后续片段。` }] };
+          }
+          const bytes = Buffer.from(await response.arrayBuffer());
+          totalBytes += bytes.length;
+          if (totalBytes > 4_000_000) {
+            return { isError: true, content: [{ type: "text" as const, text: "语音超过 4MB 大小限制，请缩短文字后重试。" }] };
+          }
+          buffers.push(bytes);
         }
-        const bytes = Buffer.from(await response.arrayBuffer());
-        if (bytes.length > 4_000_000) {
-          return { isError: true, content: [{ type: "text" as const, text: "生成的音频超过大小限制，请缩短文字后重试。" }] };
-        }
-        const audioUrl = `data:audio/mpeg;base64,${bytes.toString("base64")}`;
+        // MP3 frame concatenation is provisional; validate duration and seeking before production.
+        const audioUrl = `data:audio/mpeg;base64,${Buffer.concat(buffers).toString("base64")}`;
         return {
           content: [{ type: "text" as const, text: `阿云的语音：${text}` }],
           structuredContent: { name: "怡怡", message: text, audioUrl, timestamp: new Date().toISOString() },
