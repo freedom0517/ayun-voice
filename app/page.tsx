@@ -6,7 +6,8 @@ import { useWidgetProps } from "./hooks";
 type VoiceResult = {
   name?: string;
   message?: string;
-  audioUrl?: string;\n  audioSegments?: string[];
+  audioUrl?: string;
+  audioSegments?: string[];
   result?: { structuredContent?: { name?: string; message?: string; audioUrl?: string; audioSegments?: string[] } };
 };
 
