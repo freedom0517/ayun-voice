@@ -6,8 +6,8 @@ import { useWidgetProps } from "./hooks";
 type VoiceResult = {
   name?: string;
   message?: string;
-  audioUrl?: string;
-  result?: { structuredContent?: { name?: string; message?: string; audioUrl?: string } };
+  audioUrl?: string;\n  audioSegments?: string[];
+  result?: { structuredContent?: { name?: string; message?: string; audioUrl?: string; audioSegments?: string[] } };
 };
 
 const DEFAULT_AUDIO = "https://interactive-examples.mdn.mozilla.net/media/cc0-audio/t-rex-roar.mp3";
@@ -22,14 +22,17 @@ function formatTime(seconds: number) {
 export default function Home() {
   const toolOutput = useWidgetProps<VoiceResult>();
   const content = toolOutput?.result?.structuredContent ?? toolOutput;
-  const audioUrl = content?.audioUrl || DEFAULT_AUDIO;
+  const audioSegments = content?.audioSegments?.length ? content.audioSegments : [content?.audioUrl || DEFAULT_AUDIO];
+  const [segmentIndex, setSegmentIndex] = useState(0);
+  const audioUrl = audioSegments[Math.min(segmentIndex, audioSegments.length - 1)];
+  const multiPart = audioSegments.length > 1;
   const message = content?.message;
   const audioRef = useRef<HTMLAudioElement>(null);
   const [playing, setPlaying] = useState(false);
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
   const [muted, setMuted] = useState(false);
-  const [completedDuration, setCompletedDuration] = useState(0);
+  const [completedDuration, setCompletedDuration] = useState(0);\n  const [autoAdvance, setAutoAdvance] = useState(false);
 
   function syncDuration(audio: HTMLAudioElement) {
     if (Number.isFinite(audio.duration) && audio.duration > 0) {
@@ -47,6 +50,14 @@ export default function Home() {
     setCompletedDuration(0);
   }, [audioUrl]);
 
+  useEffect(() => {
+    if (!autoAdvance) return;
+    const audio = audioRef.current;
+    if (!audio) return;
+    audio.load();
+    audio.play().then(() => setAutoAdvance(false)).catch(() => { setAutoAdvance(false); setPlaying(false); });
+  }, [segmentIndex, autoAdvance]);
+
   async function togglePlayback() {
     const audio = audioRef.current;
     if (!audio) return;
@@ -55,6 +66,11 @@ export default function Home() {
       return;
     }
     try {
+      if (multiPart && segmentIndex === audioSegments.length - 1 && audio.ended) {
+        setSegmentIndex(0);
+        setAutoAdvance(true);
+        return;
+      }
       await audio.play();
     } catch {
       setPlaying(false);
@@ -78,7 +94,16 @@ export default function Home() {
               onTimeUpdate={(event) => { setCurrentTime(event.currentTarget.currentTime); syncDuration(event.currentTarget); }}
               onPlay={() => setPlaying(true)}
               onPause={() => setPlaying(false)}
-              onEnded={(event) => { setPlaying(false); setCurrentTime(event.currentTarget.currentTime); if (!duration && event.currentTarget.currentTime > 0) setCompletedDuration(event.currentTarget.currentTime); }}
+              onEnded={(event) => {
+                if (multiPart && segmentIndex < audioSegments.length - 1) {
+                  setSegmentIndex(index => index + 1);
+                  setAutoAdvance(true);
+                } else {
+                  setPlaying(false);
+                  setCurrentTime(event.currentTarget.currentTime);
+                  if (!duration && event.currentTarget.currentTime > 0) setCompletedDuration(event.currentTarget.currentTime);
+                }
+              }}
               style={{ display: "none" }}
             />
             <div style={{ display: "flex", alignItems: "center", gap: 9, width: "100%", minWidth: 0, boxSizing: "border-box", background: "#FCE6EF", borderRadius: 999, padding: "12px 14px", color: PINK }}>
@@ -89,7 +114,7 @@ export default function Home() {
                   <svg width="18" height="18" viewBox="0 0 18 18" fill="currentColor" aria-hidden="true"><path d="M4 2.5a1 1 0 0 1 1.52-.85l11 6.5a1 1 0 0 1 0 1.7l-11 6.5A1 1 0 0 1 4 15.5z"/></svg>
                 )}
               </button>
-              <span style={{ fontSize: 12, whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums", flexShrink: 0 }}>{formatTime(currentTime)} / {totalDuration > 0 ? formatTime(totalDuration) : "--:--"}</span>
+              <span style={{ fontSize: 12, whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums", flexShrink: 0 }}>{multiPart ? `${segmentIndex + 1}/${audioSegments.length} · ` : ""}{formatTime(currentTime)} / {totalDuration > 0 ? formatTime(totalDuration) : "--:--"}</span>
               <div style={{ position: "relative", flex: 1, minWidth: 34, height: 22, display: "flex", alignItems: "center" }}>
                 <div aria-hidden="true" style={{ position: "absolute", left: 0, right: 0, height: 4, borderRadius: 999, background: "#FFFFFF", pointerEvents: "none" }}>
                   <div style={{ width: `${progress}%`, height: "100%", borderRadius: 999, background: PINK }} />
@@ -101,7 +126,7 @@ export default function Home() {
                   max={100}
                   step={0.1}
                   value={progress}
-                  disabled={totalDuration <= 0}
+                  disabled={totalDuration <= 0 || multiPart}
                   onChange={(event) => {
                     const audio = audioRef.current;
                     if (audio && totalDuration > 0) {
@@ -110,7 +135,7 @@ export default function Home() {
                       setCurrentTime(nextTime);
                     }
                   }}
-                  style={{ position: "relative", width: "100%", margin: 0, height: 22, opacity: 0, cursor: totalDuration > 0 ? "pointer" : "default" }}
+                  style={{ position: "relative", width: "100%", margin: 0, height: 22, opacity: 0, cursor: totalDuration > 0 && !multiPart ? "pointer" : "default" }}
                 />
                 <div aria-hidden="true" style={{ position: "absolute", left: `calc(${progress}% - 5px)`, width: 10, height: 10, borderRadius: "50%", background: PINK, pointerEvents: "none" }} />
               </div>
