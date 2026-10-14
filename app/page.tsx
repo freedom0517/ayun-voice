@@ -8,7 +8,8 @@ type VoiceResult = {
   message?: string;
   audioUrl?: string;
   audioSegments?: string[];
-  result?: { structuredContent?: { name?: string; message?: string; audioUrl?: string; audioSegments?: string[] } };
+  timestamp?: string;
+  result?: { structuredContent?: { name?: string; message?: string; audioUrl?: string; audioSegments?: string[]; timestamp?: string } };
 };
 
 const DEFAULT_AUDIO = "https://interactive-examples.mdn.mozilla.net/media/cc0-audio/t-rex-roar.mp3";
@@ -28,6 +29,8 @@ export default function Home() {
   const audioUrl = audioSegments[Math.min(segmentIndex, audioSegments.length - 1)];
   const multiPart = audioSegments.length > 1;
   const message = content?.message;
+  // New tool results get a fresh timestamp; switch back to the first segment.
+  const voiceKey = content?.timestamp ?? `${message ?? ""}:${audioSegments[0]?.slice(0, 96) ?? ""}`;
   const audioRef = useRef<HTMLAudioElement>(null);
   const [playing, setPlaying] = useState(false);
   const [duration, setDuration] = useState(0);
@@ -35,6 +38,7 @@ export default function Home() {
   const [muted, setMuted] = useState(false);
   const [completedDuration, setCompletedDuration] = useState(0);
   const [autoAdvance, setAutoAdvance] = useState(false);
+  const [playbackIssue, setPlaybackIssue] = useState("");
 
   function syncDuration(audio: HTMLAudioElement) {
     if (Number.isFinite(audio.duration) && audio.duration > 0) {
@@ -44,6 +48,13 @@ export default function Home() {
       if (Number.isFinite(end) && end > 0) setDuration(end);
     }
   }
+
+  useEffect(() => {
+    audioRef.current?.pause();
+    setSegmentIndex(0);
+    setAutoAdvance(false);
+    setPlaybackIssue("");
+  }, [voiceKey]);
 
   useEffect(() => {
     setPlaying(false);
@@ -57,7 +68,11 @@ export default function Home() {
     const audio = audioRef.current;
     if (!audio) return;
     audio.load();
-    audio.play().then(() => setAutoAdvance(false)).catch(() => { setAutoAdvance(false); setPlaying(false); });
+    audio.play().then(() => { setAutoAdvance(false); setPlaybackIssue(""); }).catch(() => {
+      setAutoAdvance(false);
+      setPlaying(false);
+      setPlaybackIssue("下一段需要手动点播放，可能是手机限制了自动播放。");
+    });
   }, [segmentIndex, autoAdvance]);
 
   async function togglePlayback() {
@@ -74,8 +89,10 @@ export default function Home() {
         return;
       }
       await audio.play();
+      setPlaybackIssue("");
     } catch {
       setPlaying(false);
+      setPlaybackIssue("音频无法播放，请再点一次播放或检查网络。");
     }
   }
 
@@ -94,7 +111,8 @@ export default function Home() {
               onCanPlay={(event) => syncDuration(event.currentTarget)}
               onDurationChange={(event) => syncDuration(event.currentTarget)}
               onTimeUpdate={(event) => { setCurrentTime(event.currentTarget.currentTime); syncDuration(event.currentTarget); }}
-              onPlay={() => setPlaying(true)}
+              onPlay={() => { setPlaying(true); setPlaybackIssue(""); }}
+              onError={() => { setPlaying(false); setPlaybackIssue("当前音频加载失败，请检查网络或重新生成。"); }}
               onPause={() => setPlaying(false)}
               onEnded={(event) => {
                 if (multiPart && segmentIndex < audioSegments.length - 1) {
@@ -145,6 +163,7 @@ export default function Home() {
                 {muted ? <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="m17 9 5 6m0-6-5 6"/></svg> : <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg>}
               </button>
             </div>
+        {playbackIssue && <div role="status" style={{ fontSize: 12, color: "#A54D72", marginTop: 7 }}>{playbackIssue}</div>}
         {message && <div style={{ fontSize: 13, lineHeight: 1.7, color: "#776b72", marginTop: 9, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{message}</div>}
       </div>
     </main>
